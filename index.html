@@ -1,0 +1,121 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DON'T TOUCH</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#a8e9ff;font-family:Arial;overflow:hidden}
+#game{height:100dvh;max-width:480px;margin:auto;position:relative}
+canvas{width:100%;height:100%;display:block}
+#hud{position:absolute;top:15px;width:100%;display:flex;justify-content:space-around;font-weight:bold;font-size:19px;color:#34516b}
+#panel{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;background:#70dafa66;text-align:center}
+h1{font-size:42px;color:#ff6588;text-shadow:3px 3px white}
+button{background:#ff668c;color:white;border:0;border-radius:30px;padding:15px 35px;font-size:20px;font-weight:bold}
+#hint{position:absolute;bottom:20px;width:100%;text-align:center;font-weight:bold;color:#34516b}
+</style>
+</head>
+<body>
+<div id="game">
+<canvas id="c"></canvas>
+<div id="hud">
+<span>⭐ <b id="score">0</b></span>
+<span>🪙 <b id="coins">0</b></span>
+<span>🏆 <b id="best">0</b></span>
+</div>
+<div id="panel">
+<h1>DON'T TOUCH!</h1>
+<div style="font-size:70px">😎</div>
+<p>Hindari rintangan dan kumpulkan koin!</p>
+<button id="play">PLAY GAME</button>
+</div>
+<div id="hint">SENTUH KIRI / KANAN UNTUK BERGERAK</div>
+</div>
+<script>
+const c=document.getElementById("c");
+const ctx=c.getContext("2d");
+const panel=document.getElementById("panel");
+let W,H,p,obs=[],coins=[],score=0,total=0,best=0,playing=false,frame=0;
+try{best=Number(localStorage.getItem("best"))||0}catch(e){}
+document.getElementById("best").textContent=best;
+function resize(){
+let r=c.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);
+W=r.width;H=r.height;c.width=W*d;c.height=H*d;
+ctx.setTransform(d,0,0,d,0,0);
+}
+onresize=resize;resize();
+function start(){
+p={x:W/2,y:H-100,r:21};obs=[];coins=[];
+score=0;total=0;frame=0;playing=true;
+panel.style.display="none";
+}
+function move(e){
+let r=c.getBoundingClientRect();
+p.x=Math.max(25,Math.min(W-25,e.clientX-r.left));
+}
+c.addEventListener("pointerdown",move);
+c.addEventListener("pointermove",e=>{if(e.buttons||e.pointerType==="touch")move(e)});
+function end(){
+playing=false;
+if(Math.floor(score)>best){
+best=Math.floor(score);
+try{localStorage.setItem("best",best)}catch(e){}
+}
+document.getElementById("best").textContent=best;
+panel.innerHTML=`<h1>GAME OVER!</h1><div style="font-size:65px">🥺</div><p>Skor: ${Math.floor(score)}</p><p>Koin: ${total}</p><button id="again">MAIN LAGI</button>`;
+panel.style.display="flex";
+document.getElementById("again").onclick=start;
+}
+function draw(){
+ctx.fillStyle="#b8f1ff";ctx.fillRect(0,0,W,H);
+ctx.fillStyle="#8bdb9b";ctx.fillRect(0,H-35,W,35);
+ctx.fillStyle="white";
+for(let i=0;i<5;i++){
+let x=(i*103+Date.now()*.025)%(W+100)-40;
+ctx.beginPath();ctx.arc(x,90+i%3*90,18,0,7);ctx.arc(x+22,82+i%3*90,24,0,7);ctx.arc(x+45,90+i%3*90,18,0,7);ctx.fill();
+}
+obs.forEach(o=>{
+ctx.fillStyle="#f36d83";
+ctx.beginPath();ctx.roundRect(o.x-o.s/2,o.y-o.s/2,o.s,o.s,7);ctx.fill();
+ctx.fillStyle="white";ctx.fillRect(o.x-7,o.y-5,4,5);ctx.fillRect(o.x+3,o.y-5,4,5);
+});
+coins.forEach(o=>{
+ctx.fillStyle="#ffd43b";ctx.beginPath();ctx.arc(o.x,o.y,10,0,7);ctx.fill();
+ctx.strokeStyle="#e5a300";ctx.lineWidth=3;ctx.stroke();
+});
+if(p){
+ctx.fillStyle="#ffbd4a";ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.fill();
+ctx.strokeStyle="#e99432";ctx.lineWidth=3;ctx.stroke();
+ctx.fillStyle="#392f46";
+ctx.beginPath();ctx.arc(p.x-7,p.y-4,3,0,7);ctx.arc(p.x+7,p.y-4,3,0,7);ctx.fill();
+ctx.strokeStyle="#392f46";ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y+1,9,.2,2.9);ctx.stroke();
+}
+}
+let last=0;
+function loop(t){
+let dt=Math.min((t-last)/16.67||1,2);last=t;
+if(playing){
+frame+=dt;
+if(frame>45){let x=30+Math.random()*(W-60),s=25+Math.random()*20;obs.push({x,y:-30,s});if(Math.random()<.7)coins.push({x:30+Math.random()*(W-60),y:-80});frame=0}
+let speed=3+score*.025;
+obs.forEach(o=>o.y+=speed*dt);
+coins.forEach(o=>o.y+=speed*dt);
+score+=dt*.04;
+document.getElementById("score").textContent=Math.floor(score);
+let hit=obs.some(o=>Math.abs(o.x-p.x)<o.s/2+p.r-5&&Math.abs(o.y-p.y)<o.s/2+p.r-5);
+if(hit)end();
+obs=obs.filter(o=>o.y<H+50);
+coins=coins.filter(o=>{
+if(Math.hypot(o.x-p.x,o.y-p.y)<30){total++;document.getElementById("coins").textContent=total;return false}
+return o.y<H+20;
+});
+}
+draw();requestAnimationFrame(loop);
+}
+document.getElementById("play").onclick=start;
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
